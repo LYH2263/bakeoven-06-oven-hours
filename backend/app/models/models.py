@@ -19,6 +19,9 @@ class Oven(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     label: Mapped[str] = mapped_column(String(40), unique=True)
     capacity_note: Mapped[str] = mapped_column(String(80), default="")
+    # 营业时段为半开区间 [open_min, close_min)：打烊分钟本身不可排
+    open_min: Mapped[int] = mapped_column(Integer, default=8 * 60)
+    close_min: Mapped[int] = mapped_column(Integer, default=22 * 60)
 
 
 class Batch(Base):

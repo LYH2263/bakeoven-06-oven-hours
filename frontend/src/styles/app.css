@@ -299,3 +299,18 @@ select, input, .gantt-deck button, .toolbar button {
   justify-content: space-between;
   font-family: "IBM Plex Mono", monospace;
 }
+
+/* 炉位营业带：铺在占炉块底下，右缘即打烊点（不含） */
+.gantt-hours {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(242, 184, 128, .09);
+  border-left: 1px solid rgba(242, 184, 128, .5);
+  border-right: 1px dashed rgba(242, 184, 128, .55);
+}
+.hint {
+  color: var(--bake-muted);
+  font-size: .78rem;
+  margin-top: .6rem;
+}

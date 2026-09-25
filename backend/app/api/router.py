@@ -9,6 +9,7 @@ from app.schemas.schemas import (
     BatchOut,
     ConflictOut,
     GanttBlock,
+    OvenHoursUpdate,
     OvenOut,
     ProductOut,
     WindowOut,
@@ -18,6 +19,7 @@ from app.services.oven_engine import (
     RecipeDurations,
     build_occupancies,
     find_conflicts,
+    fits_business_hours,
     next_free_window,
 )
 
@@ -73,6 +75,20 @@ def ovens(db: Session = Depends(get_db)):
     return db.scalars(select(Oven).order_by(Oven.id)).all()
 
 
+@api_router.put("/ovens/{oven_id}/hours", response_model=OvenOut)
+def update_oven_hours(oven_id: int, body: OvenHoursUpdate, db: Session = Depends(get_db)):
+    oven = db.get(Oven, oven_id)
+    if not oven:
+        raise HTTPException(404, "炉位不存在")
+    if body.open_min >= body.close_min:
+        raise HTTPException(400, "打烊时间必须晚于开门时间")
+    oven.open_min = body.open_min
+    oven.close_min = body.close_min
+    db.commit()
+    db.refresh(oven)
+    return oven
+
+
 @api_router.get("/batches", response_model=list[BatchOut])
 def batches(db: Session = Depends(get_db)):
     rows = db.scalars(select(Batch).order_by(Batch.start_min)).all()
@@ -87,9 +103,19 @@ def create_batch(body: BatchCreate, db: Session = Depends(get_db)):
         raise HTTPException(404, "产品或炉位不存在")
     recipe = _recipe(product)
     candidates = build_occupancies(oven.id, -1, body.start_min, recipe)
+    code = body.code or f"BO-{body.start_min}"
+    if not fits_business_hours(candidates, oven.open_min, oven.close_min):
+        span_start = min(c.interval.start for c in candidates)
+        span_end = max(c.interval.end for c in candidates)
+        detail = (
+            f"超出该炉营业时段 [{oven.open_min},{oven.close_min})："
+            f"占炉 [{span_start},{span_end})"
+        )
+        db.add(ConflictLog(batch_code=code, oven_id=oven.id, detail=detail))
+        db.commit()
+        raise HTTPException(409, detail)
     existing = _all_occupancies(db)
     hits = find_conflicts(existing, candidates)
-    code = body.code or f"BO-{body.start_min}"
     if hits:
         ex, cand = hits[0]
         detail = (
@@ -148,7 +174,13 @@ def windows(product_id: int, db: Session = Depends(get_db)):
     existing = _all_occupancies(db)
     out: list[WindowOut] = []
     for oven in db.scalars(select(Oven).order_by(Oven.id)).all():
-        w = next_free_window(existing, oven.id, duration, search_from=8 * 60, search_to=22 * 60)
+        w = next_free_window(
+            existing,
+            oven.id,
+            duration,
+            search_from=oven.open_min,
+            search_to=oven.close_min,
+        )
         if w:
             out.append(
                 WindowOut(

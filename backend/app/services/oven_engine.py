@@ -57,6 +57,17 @@ def find_conflicts(existing: list[Occupancy], candidates: list[Occupancy]) -> li
     return hits
 
 
+def fits_business_hours(candidates: list[Occupancy], open_min: int, close_min: int) -> bool:
+    """All segments of a batch must sit inside the oven's half-open [open_min, close_min).
+
+    A segment ending exactly at close_min is allowed (close point itself excluded).
+    """
+    return all(
+        o.interval.start >= open_min and o.interval.end <= close_min
+        for o in candidates
+    )
+
+
 def next_free_window(
     existing: list[Occupancy],
     oven_id: int,
