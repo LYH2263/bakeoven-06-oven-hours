@@ -14,7 +14,14 @@ class OvenOut(BaseModel):
     id: int
     label: str
     capacity_note: str
+    open_min: int
+    close_min: int
     model_config = {"from_attributes": True}
+
+
+class OvenHoursUpdate(BaseModel):
+    open_min: int = Field(ge=0, le=24 * 60)
+    close_min: int = Field(ge=0, le=24 * 60)
 
 
 class BatchOut(BaseModel):

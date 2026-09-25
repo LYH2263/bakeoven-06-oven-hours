@@ -1,27 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 type Block = { batch_id: number; code: string; oven_id: number; oven_label: string; phase: string; start_min: number; end_min: number };
-const DAY_START = 8 * 60, DAY_END = 18 * 60, SPAN = DAY_END - DAY_START;
-function pct(m: number) { return ((m - DAY_START) / SPAN) * 100; }
+type Oven = { id: number; label: string; open_min: number; close_min: number };
+function fmt(m: number) { const h = Math.floor(m/60), mm = m%60; return `${String(h).padStart(2,"0")}:${String(mm).padStart(2,"0")}`; }
 export default function GanttPage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
-  useEffect(() => { api<Block[]>("/gantt").then(setBlocks); }, []);
+  const [ovens, setOvens] = useState<Oven[]>([]);
+  useEffect(() => {
+    api<Block[]>("/gantt").then(setBlocks);
+    api<Oven[]>("/ovens").then(setOvens);
+  }, []);
+  // 时间轴覆盖全部炉的营业时段与已排批次，默认 08:00–22:00
+  const [dayStart, dayEnd] = useMemo(() => {
+    let lo = 8 * 60, hi = 22 * 60;
+    for (const o of ovens) { lo = Math.min(lo, o.open_min); hi = Math.max(hi, o.close_min); }
+    for (const b of blocks) { lo = Math.min(lo, b.start_min); hi = Math.max(hi, b.end_min); }
+    return [lo, hi];
+  }, [ovens, blocks]);
+  const SPAN = dayEnd - dayStart;
+  function pct(m: number) { return ((m - dayStart) / SPAN) * 100; }
   const rows = useMemo(() => {
-    const map = new Map<number, { label: string; blocks: Block[] }>();
+    const byOven = new Map<number, Block[]>();
     for (const b of blocks) {
-      if (!map.has(b.oven_id)) map.set(b.oven_id, { label: b.oven_label, blocks: [] });
-      map.get(b.oven_id)!.blocks.push(b);
+      if (!byOven.has(b.oven_id)) byOven.set(b.oven_id, []);
+      byOven.get(b.oven_id)!.push(b);
     }
-    return [...map.entries()];
-  }, [blocks]);
+    return ovens.map(o => ({ oven: o, blocks: byOven.get(o.id) ?? [] }));
+  }, [ovens, blocks]);
   return (<>
     <h2>甘特（生产占炉）</h2>
-    <div className="axis"><div /><div className="axis-scale"><span>08:00</span><span>12:00</span><span>18:00</span></div></div>
+    <div className="axis"><div /><div className="axis-scale"><span>{fmt(dayStart)}</span><span>{fmt(Math.round((dayStart + dayEnd) / 2))}</span><span>{fmt(dayEnd)}</span></div></div>
     <div className="gantt">
-      {rows.map(([oid, row]) => (
-        <div className="gantt-row" key={oid}>
-          <div>{row.label}</div>
+      {rows.map(row => (
+        <div className="gantt-row" key={row.oven.id}>
+          <div>{row.oven.label}</div>
           <div className="gantt-track">
+            <div className="gantt-band"
+              style={{ left: `${pct(row.oven.open_min)}%`, width: `${((row.oven.close_min - row.oven.open_min) / SPAN) * 100}%` }}
+              title={`营业 ${fmt(row.oven.open_min)}–${fmt(row.oven.close_min)}`} />
             {row.blocks.map((b, i) => (
               <div key={i} className={`gantt-block ${b.phase}`}
                 style={{ left: `${pct(b.start_min)}%`, width: `${((b.end_min - b.start_min) / SPAN) * 100}%` }}

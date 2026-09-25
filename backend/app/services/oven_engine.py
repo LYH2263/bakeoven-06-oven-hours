@@ -57,6 +57,22 @@ def find_conflicts(existing: list[Occupancy], candidates: list[Occupancy]) -> li
     return hits
 
 
+def fits_operating_hours(
+    candidates: list[Occupancy],
+    open_min: int,
+    close_min: int,
+) -> bool:
+    """True when every segment lies inside the oven's half-open [open_min, close_min) band.
+
+    A segment may start exactly at open_min and end exactly at close_min
+    (the close minute itself is not schedulable, interval ends are exclusive).
+    """
+    return all(
+        occ.interval.start >= open_min and occ.interval.end <= close_min
+        for occ in candidates
+    )
+
+
 def next_free_window(
     existing: list[Occupancy],
     oven_id: int,

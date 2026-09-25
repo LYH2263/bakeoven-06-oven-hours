@@ -271,6 +271,13 @@ select, input, .gantt-deck button, .toolbar button {
   overflow: hidden;
   box-shadow: inset 0 0 12px rgba(0,0,0,.4);
 }
+.gantt-band {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(242, 184, 128, .09);
+  border-left: 1px dashed rgba(242, 184, 128, .45);
+  border-right: 1px dashed rgba(242, 184, 128, .45);
+  pointer-events: none;
+}
 .gantt-block {
   position: absolute; top: 5px; bottom: 5px; border-radius: 2px; font-size: 11px;
   display: flex; align-items: center; justify-content: center; color: #fff;
